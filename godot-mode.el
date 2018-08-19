@@ -117,6 +117,78 @@ See also command `toggle-gd-underscore-word-syntax-p'")
 Syntax or has word syntax and isn't a letter.")
 
 ;; indentation
+;; rules:
+;; 1. if we are at the beginning of the buffer, indent to col 0
+;; 2. if we are at an "de-indent" line, we deindent relative to previous line
+;; 3. lines following "de-indent" line should be the same as the de-indent line
+;; 4. lines following a "start" line should be indent 1 more than start line
+;; but it's too hard, so I am only gonna implement new line and indent like the builtin editor.
+(defun godot-newline-and-indent ()
+  "Go to new line and indent appropriately."
+  (interactive)
+  (message "you pressed something")
+  (newline-and-indent)
+  (let ((not-indented t) cur-indent)
+    (save-excursion
+      (while not-indented
+	(forward-line -1)
+	(if (looking-at "^[ \t]*\\(func\\|if\\|else\\|elif\\|for\\|while\\)")
+	    (progn
+	      (setq cur-indent (+ (current-indentation) 8))
+	      (setq not-indented nil))
+	  (if (bobp)
+	      (setq not-indented nil))
+	  ))
+      )
+    (if cur-indent
+	(indent-line-to cur-indent)
+      (indent-line-to 0))
+    )
+  )
+
+(defun godot-indent-line ()
+  "Indent current line as Godot script code."
+  (interactive)
+  (beginning-of-line)
+  (if (bobp)
+      (indent-line-to 0)
+    (let ((not-indented t) cur-indent)
+      (if (looking-at "^[ \t]*[func]")
+	  (setq cur-indent 0)
+	(if (looking-at "^[ \t]*\\(elif\\|else\\)")
+	    (progn
+	      (save-excursion
+		(forward-line -1)
+		(setq cur-indent (- (current-indentation) 8)))
+	      )
+	  (save-excursion
+	    (while not-indented
+	      (message "how many")
+	      (forward-line -1)
+	      (if (looking-at "^[ \t]*\\(func\\|if\\)")
+		  (progn
+		    (message "test1")
+		    (setq cur-indent (+ (current-indentation) 8))
+		    (setq not-indented nil))
+		(if (bobp)
+		    (message "test3")
+		  (setq not-indented nil)
+		  (progn
+		    (message "test")
+		    (setq cur-indent (current-indentation))
+		    (setq not-indented nil)))))))
+	)
+      (if cur-indent
+	  (indent-line-to cur-indent)
+	(indent-line-to 0)))))
+
+
+
+(defvar godot-mode-map
+  (let (( map (make-keymap)))
+    (define-key map "\C-j" 'godot-newline-and-indent)
+    map)
+  "Keymap for Godot major mode.")
 
 ;; entry function
 (defun godot-mode ()
@@ -124,7 +196,9 @@ Syntax or has word syntax and isn't a letter.")
   (interactive)
   (kill-all-local-variables)
   (set-syntax-table godot-mode-syntax-table)
+  (use-local-map godot-mode-map)
   (set (make-local-variable 'font-lock-defaults) '(godot-font-lock-keywords))
+  ;; (set (make-local-variable 'indent-line-function) 'godot-indent-line)
   (setq major-mode 'godot-mode)
   (setq mode-name "Godot")
   (run-hooks 'godot-mode-hook))
